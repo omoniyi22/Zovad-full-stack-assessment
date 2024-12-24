@@ -5,6 +5,7 @@ import { Link } from "react-router-dom";
 import { FaThumbsUp, FaThumbsDown, FaTrash, FaEye } from "react-icons/fa";
 
 const InfiniteScrollNews = () => {
+    const [reactions, setReactions] = useState({})
     const [news, setNews] = useState([]);
     const [page, setPage] = useState(1);
     const [hasMore, setHasMore] = useState(true);
@@ -15,7 +16,6 @@ const InfiniteScrollNews = () => {
     const [likeLoader, setLikeLoader] = useState(null);
     const [loadedPage, setLoadedPage] = useState([])
 
-    let [reactions, setReactions] = useState({})
 
     useEffect(() => {
         localStorage.setItem("latest_page", 1)
@@ -119,11 +119,17 @@ const InfiniteScrollNews = () => {
         if (likeLoader != true)
             try {
                 setLikeLoader(true)
+
+                // if(reactions[id])
+
+
                 let reaction = reactions[id] ? reactions[id] :
                     {
                         like: reactions[id] ? reactions[id].like : 0,
                         dislike: reactions[id] ? reactions[id].dislike : 0
                     }
+
+                setReactions(data => ({ ...data, [id]: reaction }))
 
                 if (reaction && reaction.dislike == 1) {
 
@@ -162,7 +168,7 @@ const InfiniteScrollNews = () => {
                                 post.id === id ? { ...post, like: like_count, dislike: new_post.dislike } : post
                             )
                         );
-                        
+
 
 
                         setReactions(data => ({ ...data, [id]: { like: 1, dislike: 0 } }))
@@ -202,6 +208,9 @@ const InfiniteScrollNews = () => {
                         like: reactions[id] ? reactions[id].like : 0,
                         dislike: reactions[id] ? reactions[id].dislike : 0
                     }
+
+                setReactions(data => ({ ...data, [id]: reaction }))
+                
 
                 if (reaction && reaction.like == 1) {
 

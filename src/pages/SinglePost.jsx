@@ -1,5 +1,5 @@
 import { API_URL } from "../utils/api";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import axios from "axios";
 import { Link } from "react-router-dom";
 import { useNavigate } from 'react-router-dom';
@@ -24,22 +24,32 @@ const InfiniteScrollNews = () => {
   let [reactions, setReactions] = useState({})
 
 
+  const fetchCalled = useRef(false);
 
-  const fetchNews = async () => {
-    if (loading) return;
-    if (!hasMore) return;
-    setLoading(true);
-    try {
-      const response = await axios.get(`${API_URL}/api/news/${id}`);
-      setNews(response.data)
-      setLoading(false);
-    } catch (error) {
-      console.error("Failed to fetch news:", error);
-      setLoading(false);
-    } finally {
-      setLoading(false);
-    }
-  };
+
+  useEffect(() => {
+    if (fetchCalled.current) return;
+
+    const fetchStats = async () => {
+      if (loading) return;
+      if (!hasMore) return;
+      setLoading(true);
+      try {
+        const response = await axios.get(`${API_URL}/api/news/view/${id}`);
+        setNews(response.data)
+        setLoading(false);
+      } catch (error) {
+        console.error("Failed to fetch news:", error);
+        setLoading(false);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchStats();
+    fetchCalled.current = true; // Mark fetch as called
+  }, []);
+
 
   function getUniqueById(array) {
     const uniqueMap = new Map();
@@ -54,11 +64,7 @@ const InfiniteScrollNews = () => {
   }
 
 
-  useEffect(() => {
-    localStorage.setItem("latest_page", 1)
-    localStorage.setItem("has_more", true)
-    fetchNews();
-  }, [])
+ 
 
 
   const handleLike = async (id) => {
@@ -90,7 +96,7 @@ const InfiniteScrollNews = () => {
             post.id === id ? { ...post, dislike: dislike_count, like: like_count } : post
           );
 
-          setReactions(data => ({ ...data, [id]: {like: 1, dislike: 0 } }))
+          setReactions(data => ({ ...data, [id]: { like: 1, dislike: 0 } }))
         } else {
           if (reaction && reaction.like == 0) {
             let like_count = (await axios.put(`${API_URL}/api/news/reactions`, {
@@ -238,7 +244,7 @@ const InfiniteScrollNews = () => {
             )}
 
             <div className="mt-auto flex items-center space-x-4">
-              <FaEye className={`mr-2 text-black`} /> {news.views} 
+              <FaEye className={`mr-2 text-black`} /> {news.views}
               <button
                 className={`px-3 py-1 flex items-center bg-green-500 text-white rounded`}
                 onClick={() => handleLike(news.id)}

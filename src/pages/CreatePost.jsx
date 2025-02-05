@@ -37,7 +37,6 @@ const FormComponent = () => {
 
     try {
       setLoader(true)
-      // Upload image to Cloudinary
       const formDataForCloudinary = new FormData();
       formDataForCloudinary.append('file', formData.picture);
       formDataForCloudinary.append('upload_preset', 'new-present');
@@ -51,17 +50,18 @@ const FormComponent = () => {
       const imageUrlFromCloudinary = cloudinaryResponse.data.secure_url;
       setImageUrl(imageUrlFromCloudinary);
 
-      // Submit the form data to your endpoint
       const finalData = {
         title: formData.title,
         text: formData.text,
         picture: imageUrlFromCloudinary,
-        tags: formData.tags, // Include the array of tags
+        tags: formData.tags, 
       };
 
-      let new_post = await axios.post(`${API_URL}/api/news`, finalData);
+      let new_post = await axios.post(`${API_URL}/api/articles`, finalData);
       new_post = await new_post.data
-      navigate(`/post/${new_post.id}`)
+
+
+      navigate(`/news/id/${new_post.id}`)
     } catch (error) {
       console.error('Error submitting the form:', error);
     } finally {

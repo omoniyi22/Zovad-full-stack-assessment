@@ -1,8 +1,8 @@
 import { API_URL } from "../utils/api";
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-import { Link } from "react-router-dom";
-
+import { Link, redirect } from "react-router-dom";
+import { useParams } from "react-router-dom";
 
 import { FaThumbsUp, FaThumbsDown, FaTrash, FaEye } from "react-icons/fa";
 import { io } from "socket.io-client";
@@ -21,18 +21,18 @@ const InfiniteScrollNews = () => {
     const [likeLoader, setLikeLoader] = useState(null);
     const [loadedPage, setLoadedPage] = useState([])
 
+    const { tag } = useParams()
 
     useEffect(() => {
-        localStorage.setItem("latest_page", 1)
-        localStorage.setItem("has_more", true)
-        setNews([])
+        console.log("sdsldbl", tag, { loading, hasMore })
         fetchNews();
+    }, [tag])
 
 
+    useEffect(() => {
         socket.on("newReaction", (updatedArticle) => {
             console.log({ updatedArticle: updatedArticle.id })
             setNews((prev) => prev.map(article => article.id == updatedArticle.id ? updatedArticle : article))
-
         })
 
         return () => {
@@ -44,20 +44,20 @@ const InfiniteScrollNews = () => {
 
     const fetchNews = async () => {
         if (loading) return;
-        if (!hasMore) return;
         setLoading(true);
         try {
+            console.log('running')
             const latest_page = localStorage.getItem("latest_page")
-            if (!loadedPage.includes(latest_page)) {
-                const response = await axios.get(`${API_URL}/api/articles/?page=${latest_page}&limit=3`);
-                let fresh_news = []
-                console.log(response.data.news)
-                for (let post of response.data.news) {
-                    console.log({ post })
-                    if (news.every((data) => data.id != post.id)) {
-                        fresh_news.push(post)
-                        console.log(true)
-                    }
+            const response = await axios.get(`${API_URL}/api/articles/tag/${tag}`)
+            setNews(response.data.data)
+            console.log('running')
+            let fresh_news = []
+            console.log(response.data.data)
+            for (let post of response.data.data) {
+                console.log({ post })
+                if (news.every((data) => data.id != post.id)) {
+                    fresh_news.push(post)
+                    console.log(true)
                 }
 
                 setNews((prev) => {
@@ -120,22 +120,20 @@ const InfiniteScrollNews = () => {
                 window.innerHeight + document.documentElement.scrollTop >=
                 document.documentElement.offsetHeight - 10
             ) {
-                if (localStorage.getItem("has_more") != false) { 
+                if (localStorage.getItem("has_more") != false) {  
                     fetchNews();
                 }
             }
     };
-
-    useEffect(() => {
-        window.addEventListener("scroll", handleScroll);
-        return () => window.removeEventListener("scroll", handleScroll);
-    }, []);
 
     
     const handleLike = async (id) => {
         if (likeLoader != true)
             try {
                 setLikeLoader(true)
+
+                
+
 
                 let reaction = reactions[id] ? reactions[id] :
                     {
@@ -211,6 +209,7 @@ const InfiniteScrollNews = () => {
             }
     };
 
+    
     const handleDislike = async (id) => {
         if (!likeLoader)
             try {
@@ -294,18 +293,22 @@ const InfiniteScrollNews = () => {
             }
     };
 
+    
     const openDeleteModal = (post) => {
         setSelectedPost(post);
         setShowModal(true);
     };
 
+    
     const handleDelete = async () => {
         try {
             await axios.delete(`${API_URL}/api/articles/${selectedPost.id}`);
             setNews((prev) => prev.filter((post) => post.id !== selectedPost.id));
             setShowModal(false); 
             setShowDeletedModal(true); 
-
+            if (news.length < 1) {
+                redirect("/")
+            }
             
             setTimeout(() => { setShowDeletedModal(false); }, 2000);
 
@@ -316,10 +319,10 @@ const InfiniteScrollNews = () => {
 
     return (
         <div className="max-w-7xl mx-auto p-4">
-            <h2 className="text-2xl mb-4">All Posts</h2>
+            <h2 className="text-2xl mb-4 capitalize border-b pb-3">{tag}</h2>
             <div className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {news && getUniqueById(news).map((post) => (
+                    {news && getUniqueById(news).map((post, key) => (
                         <div key={post.id} className="border p-4 rounded shadow-sm flex my-4">
                             {post.picture && (
                                 <img

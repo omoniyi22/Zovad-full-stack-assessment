@@ -6,6 +6,10 @@ import { useNavigate } from 'react-router-dom';
 
 import { FaThumbsUp, FaThumbsDown, FaTrash, FaEye } from "react-icons/fa";
 import { useParams } from "react-router-dom";
+import { io } from "socket.io-client";
+
+const socket = io(API_URL);
+
 
 
 const InfiniteScrollNews = () => {
@@ -23,223 +27,222 @@ const InfiniteScrollNews = () => {
 
   let [reactions, setReactions] = useState({})
 
-
-  const fetchCalled = useRef(false);
-
-
   useEffect(() => {
-    if (fetchCalled.current) return;
+    socket.on("newReaction", (updatedArticle) => {
+      console.log({ updatedArticle: updatedArticle.id })
+      setNews((article) => article.id == updatedArticle.id ? updatedArticle : article)
+  })
 
-    const fetchStats = async () => {
-      if (loading) return;
-      if (!hasMore) return;
-      setLoading(true);
-      try {
-        const response = await axios.get(`${API_URL}/api/news/view/${id}`);
-        setNews(response.data)
-        setLoading(false);
-      } catch (error) {
-        console.error("Failed to fetch news:", error);
-        setLoading(false);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchStats();
-    fetchCalled.current = true; // Mark fetch as called
-  }, []);
+  return () => {
+    socket.off("newsUpdated");
+    socket.off("newsAdded");
+  };
+}, [])
 
 
-  function getUniqueById(array) {
-    const uniqueMap = new Map();
+const fetchCalled = useRef(false);
 
-    for (const item of array) {
-      if (!uniqueMap.has(item.id)) {
-        uniqueMap.set(item.id, item);
-      }
+
+useEffect(() => {
+  if (fetchCalled.current) return;
+
+  const fetchStats = async () => {
+    if (loading) return;
+    if (!hasMore) return;
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_URL}/api/articles/view/${id}`);
+      console.log({ response })
+      setNews(await response.data)
+      setLoading(false);
+    } catch (error) {
+      console.error("Failed to fetch news:", error);
+      setLoading(false);
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return Array.from(uniqueMap.values());
-  }
+  fetchStats();
+  fetchCalled.current = true;
+}, []);
 
 
- 
+
+const handleLike = async (id) => {
+  if (likeLoader != true)
+    try {
+      setLikeLoader(true)
+      let reaction = reactions[id] ? reactions[id] :
+        {
+          like: reactions[id] ? reactions[id].like : 0,
+          dislike: reactions[id] ? reactions[id].dislike : 0
+        }
+
+      if (reaction && reaction.dislike == 1) {
+
+        let like_count = (await axios.patch(`${API_URL}/api/articles/${id}/react`, {
+          action: "like",
+          "id": id,
+          sign: "+"
+        })).data.count;
 
 
-  const handleLike = async (id) => {
-    if (likeLoader != true)
-      try {
-        setLikeLoader(true)
-        let reaction = reactions[id] ? reactions[id] :
-          {
-            like: reactions[id] ? reactions[id].like : 0,
-            dislike: reactions[id] ? reactions[id].dislike : 0
-          }
+        let dislike_count = (await axios.patch(`${API_URL}/api/articles/${id}/react`, {
+          action: "dislike",
+          "id": id,
+          sign: "-"
+        })).data.count
 
-        if (reaction && reaction.dislike == 1) {
+        setNews((post) =>
+          post.id === id ? { ...post, dislike: dislike_count, like: like_count } : post
+        );
 
-          let like_count = (await axios.put(`${API_URL}/api/news/reactions`, {
+        setReactions(data => ({ ...data, [id]: { like: 1, dislike: 0 } }))
+      } else {
+        if (reaction && reaction.like == 0) {
+          let like_count = (await axios.patch(`${API_URL}/api/articles/${id}/react`, {
             action: "like",
             "id": id,
             sign: "+"
           })).data.count;
 
-
-          let dislike_count = (await axios.put(`${API_URL}/api/news/reactions`, {
-            action: "dislike",
-            "id": id,
-            sign: "-"
-          })).data.count
+          let new_post = (await axios.get(`${API_URL}/api/articles/${id}`)).data;
 
           setNews((post) =>
-            post.id === id ? { ...post, dislike: dislike_count, like: like_count } : post
+            post.id === id ? { ...post, like: like_count, dislike: new_post.dislike } : post
           );
 
           setReactions(data => ({ ...data, [id]: { like: 1, dislike: 0 } }))
-        } else {
-          if (reaction && reaction.like == 0) {
-            let like_count = (await axios.put(`${API_URL}/api/news/reactions`, {
-              action: "like",
-              "id": id,
-              sign: "+"
-            })).data.count;
-
-            let new_post = (await axios.get(`${API_URL}/api/news/${id}`)).data;
-
-            setNews((post) =>
-              post.id === id ? { ...post, like: like_count, dislike: new_post.dislike } : post
-            );
-
-            setReactions(data => ({ ...data, [id]: { like: 1, dislike: 0 } }))
-          }
-          else {
-            let like_count = await (await axios.put(`${API_URL}/api/news/reactions`, {
-              action: "like",
-              "id": id,
-              sign: "-"
-            })).data.count;
-
-            let new_post = await (await axios.get(`${API_URL}/api/news/${id}`)).data;
-            setNews((post) =>
-              post.id === id ? { ...post, like: like_count, dislike: new_post.dislike } : post
-            )
-
-            setReactions(data => ({ ...data, [id]: { dislike: 0, like: 0 } }))
-          }
         }
-      } catch (error) {
-        console.error("Failed to like the post:", error);
-      } finally {
-        setLikeLoader(false)
-      }
-  };
-
-  const handleDislike = async (id) => {
-    if (!likeLoader)
-      try {
-
-        setLikeLoader(true)
-        let reaction = reactions[id] ? reactions[id] :
-          {
-            like: reactions[id] ? reactions[id].like : 0,
-            dislike: reactions[id] ? reactions[id].dislike : 0
-          }
-
-        if (reaction && reaction.like == 1) {
-
-          let dislike_count = (await (axios.put(`${API_URL}/api/news/reactions`, {
-            action: "dislike",
-            "id": id,
-            sign: "+"
-          }))).data.count;
-
-          let like_count = await (await axios.put(`${API_URL}/api/news/reactions`, {
+        else {
+          let like_count = await (await axios.patch(`${API_URL}/api/articles/${id}/react`, {
             action: "like",
             "id": id,
             sign: "-"
           })).data.count;
 
+          let new_post = await (await axios.get(`${API_URL}/api/articles/${id}`)).data;
           setNews((post) =>
-            post.id == id ? { ...post, dislike: dislike_count, like: like_count } : post
+            post.id === id ? { ...post, like: like_count, dislike: new_post.dislike } : post
+          )
+
+          setReactions(data => ({ ...data, [id]: { dislike: 0, like: 0 } }))
+        }
+      }
+    } catch (error) {
+      console.error("Failed to like the post:", error);
+    } finally {
+      setLikeLoader(false)
+    }
+};
+
+const handleDislike = async (id) => {
+  if (!likeLoader)
+    try {
+
+      setLikeLoader(true)
+      let reaction = reactions[id] ? reactions[id] :
+        {
+          like: reactions[id] ? reactions[id].like : 0,
+          dislike: reactions[id] ? reactions[id].dislike : 0
+        }
+
+      if (reaction && reaction.like == 1) {
+
+        let dislike_count = (await (axios.patch(`${API_URL}/api/articles/${id}/react`, {
+          action: "dislike",
+          "id": id,
+          sign: "+"
+        }))).data.count;
+
+        let like_count = await (await axios.patch(`${API_URL}/api/articles/${id}/react`, {
+          action: "like",
+          "id": id,
+          sign: "-"
+        })).data.count;
+
+        setNews((post) =>
+          post.id == id ? { ...post, dislike: dislike_count, like: like_count } : post
+        );
+
+        setReactions(data => ({ ...data, [id]: { dislike: 1, like: 0 } }))
+
+
+      } else {
+        if (reaction && reaction.dislike == 0) {
+          let count = await (await axios.patch(`${API_URL}/api/articles/${id}/react`, {
+            action: "dislike",
+            "id": id,
+            sign: "+"
+
+          })).data.count;
+
+          let new_post = await (await axios.get(`${API_URL}/api/articles/${id}`)).data;
+
+
+          setNews((post) =>
+            post.id === id ? { ...post, dislike: count, like: new_post.like } : post
           );
 
           setReactions(data => ({ ...data, [id]: { dislike: 1, like: 0 } }))
-
-
-        } else {
-          if (reaction && reaction.dislike == 0) {
-            let count = await (await axios.put(`${API_URL}/api/news/reactions`, {
-              action: "dislike",
-              "id": id,
-              sign: "+"
-
-            })).data.count;
-
-            let new_post = await (await axios.get(`${API_URL}/api/news/${id}`)).data;
-
-
-            setNews((post) =>
-              post.id === id ? { ...post, dislike: count, like: new_post.like } : post
-            );
-
-            setReactions(data => ({ ...data, [id]: { dislike: 1, like: 0 } }))
-          }
-          else {
-            let dislike_count = await (await axios.put(`${API_URL}/api/news/reactions`, {
-              action: "dislike",
-              "id": id,
-              sign: "-"
-            })).data.count;
-            let new_post = await (await axios.get(`${API_URL}/api/news/${id}`)).data;
-
-            setNews((post) =>
-              post.id === id ? { ...post, dislike: dislike_count, like: new_post.like } : post
-            )
-
-            setReactions(data => ({ ...data, [id]: { dislike: 0, like: 0 } }))
-          }
         }
+        else {
+          let dislike_count = await (await axios.patch(`${API_URL}/api/articles/${id}/react`, {
+            action: "dislike",
+            "id": id,
+            sign: "-"
+          })).data.count;
+          let new_post = await (await axios.get(`${API_URL}/api/articles/${id}`)).data;
 
-        setLikeLoader(false)
+          setNews((post) =>
+            post.id === id ? { ...post, dislike: dislike_count, like: new_post.like } : post
+          )
 
-      } catch (error) {
-        console.error("Failed to like the post:", error);
-        setLikeLoader(false)
+          setReactions(data => ({ ...data, [id]: { dislike: 0, like: 0 } }))
+        }
       }
-  };
 
-  const openDeleteModal = (post) => {
-    setSelectedPost(post);
-    setShowModal(true);
-  };
-
-  const handleDelete = async () => {
-    try {
-      await axios.delete(`${API_URL}/api/news/${selectedPost.id}`);
-
-      setShowModal(false);
-      setShowDeletedModal(true);
-
-      setTimeout(() => { setShowDeletedModal(false); navigate("/"); }, 2000);
-
+      setLikeLoader(false)
 
     } catch (error) {
-      console.error("Failed to delete the post:", error);
+      console.error("Failed to like the post:", error);
+      setLikeLoader(false)
     }
-  };
+};
 
-  return (
-    <div className="max-w-7xl mx-auto p-4 ">
-      <h2 className="text-2xl mb-4">Single News</h2>
+const openDeleteModal = (post) => {
+  setSelectedPost(post);
+  setShowModal(true);
+};
+
+const handleDelete = async () => {
+  try {
+    await axios.delete(`${API_URL}/api/articles/${selectedPost.id}`);
+
+    setShowModal(false);
+    setShowDeletedModal(true);
+
+    setTimeout(() => { setShowDeletedModal(false); navigate("/"); }, 2000);
+
+
+  } catch (error) {
+    console.error("Failed to delete the post:", error);
+  }
+};
+
+return (
+  <div className="min-w-max justify-center">
+    <div className="w-[80%] max-w-[600px] p-4 mx-auto shadow-sm">
+      <h2 className="text-2xl mb-4"></h2>
       <div className="space-y-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           {news && news.id && <div key={news.id} className="border p-4 rounded shadow-sm flex flex-col">
             {news.picture && (
               <img
                 src={news.picture}
                 alt={news.title}
-                className="w-full h-48 object-cover rounded mb-4"
+                className="w-full h-52 object-cover rounded mb-4"
               />
             )}
 
@@ -264,6 +267,25 @@ const InfiniteScrollNews = () => {
                 <FaTrash className="mr-2" /> Delete
               </button>
             </div>
+
+
+
+            <div className="mt-3">
+              <div className="flex mt-1  items-center space-x-2">
+                {news && news.tags && news.tags.map((tag) => (
+                  <>
+                    <Link to={`/news/tags/${tag}`} >
+                      <button className="px-3 text-sm py-1 flex  items-center bg-blue-600 text-white rounded">
+                        {tag}
+                      </button>
+                    </Link>
+                  </>
+                ))}
+              </div>
+            </div>
+
+
+
             <div>
               <h3 className="text-lg font-bold mt-3">{news.title}</h3>
               <p className="text-sm text-gray-600 mb-4">{news.text}</p>
@@ -272,7 +294,7 @@ const InfiniteScrollNews = () => {
           }
         </div>
       </div>
-      {loading && <p>Loading..</p>}
+      {loading && <p>Loading....</p>}
 
       {/* Delete Confirmation Modal */}
       {
@@ -314,7 +336,8 @@ const InfiniteScrollNews = () => {
         )
       }
     </div >
-  );
+  </div>
+);
 };
 
 export default InfiniteScrollNews;

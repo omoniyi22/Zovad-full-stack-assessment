@@ -1,1 +1,1 @@
-export const API_URL = "https://restapi-task-fydl.onrender.com"
+export const API_URL = "https://node-js-task-pv7w.onrender.com"

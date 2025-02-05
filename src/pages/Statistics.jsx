@@ -8,9 +8,8 @@ const Statistics = () => {
   useEffect(() => {
     const fetchStats = async () => {
       try {
-        const response = await axios.get(`${API_URL}/api/news/statistics`);
+        const response = await axios.get(`${API_URL}/api/articles/statistics`);
         setStats(response.data);
-        console.log({ data: response.data })
       } catch (error) {
         console.error("Error fetching statistics:", error);
       }
@@ -43,6 +42,7 @@ const Statistics = () => {
       </div>
       {stats.most_viewed && (
         <div className="mt-6 p-4 bg-white rounded shadow-md">
+          <img className="mv-3 w-full h-60 object-cover mb-3 shadow rounded" src={stats.most_viewed.picture} />
           <h3 className="text-xl font-bold text-gray-800 mb-2">Most Viewed Post</h3>
           <p className="text-gray-700">
             <span className="font-semibold">Title:</span> {stats.most_viewed.title}
